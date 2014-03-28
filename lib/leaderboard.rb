@@ -11,11 +11,13 @@ class Leaderboard
   DEFAULT_OPTIONS = {
     :page_size => DEFAULT_PAGE_SIZE,
     :reverse => false,
+    :ties => false,
     :member_key => :member,
     :rank_key => :rank,
     :score_key => :score,
     :member_data_key => :member_data,
-    :member_data_namespace => 'member_data'
+    :member_data_namespace => 'member_data',
+    :ties_namespace => 'ties'
   }
 
   # Default Redis host: localhost
@@ -72,6 +74,8 @@ class Leaderboard
 
     @reverse   = leaderboard_options[:reverse]
     @page_size = leaderboard_options[:page_size]
+    @ties = leaderboard_options[:ties]
+    @ties_namespace = leaderboard_options[:ties_namespace]
     if @page_size.nil? || @page_size < 1
       @page_size = DEFAULT_PAGE_SIZE
     end
@@ -117,6 +121,7 @@ class Leaderboard
     @redis_connection.multi do |transaction|
       transaction.del(leaderboard_name)
       transaction.del(member_data_key(leaderboard_name))
+      transaction.del(ties_leaderboard_key(leaderboard_name))
     end
   end
 
@@ -138,6 +143,7 @@ class Leaderboard
   def rank_member_in(leaderboard_name, member, score, member_data = nil)
     @redis_connection.multi do |transaction|
       transaction.zadd(leaderboard_name, score, member)
+      transaction.zadd(ties_leaderboard_key(leaderboard_name), score, score.to_f.to_s) if @ties
       transaction.hset(member_data_key(leaderboard_name), member, member_data) if member_data
     end
   end
@@ -152,6 +158,7 @@ class Leaderboard
     @redis_connection.multi do |transaction|
       leaderboards.each do |leaderboard_name|
         transaction.zadd(leaderboard_name, score, member)
+        transaction.zadd(ties_leaderboard_key(leaderboard_name), score, score.to_f.to_s) if @ties
         transaction.hset(member_data_key(leaderboard_name), member, member_data) if member_data
       end
     end
@@ -267,6 +274,7 @@ class Leaderboard
     @redis_connection.multi do |transaction|
       members_and_scores.each_slice(2) do |member_and_score|
         transaction.zadd(leaderboard_name, member_and_score[1], member_and_score[0])
+        transaction.zadd(ties_leaderboard_key(leaderboard_name), member_and_score[0], member_and_score[0].to_f.to_s) if @ties
       end
     end
   end
@@ -283,8 +291,12 @@ class Leaderboard
   # @param leaderboard_name [String] Name of the leaderboard.
   # @param member [String] Member name.
   def remove_member_from(leaderboard_name, member)
+    member_score = @ties ? @redis_connection.zscore(leaderboard_name, member) : nil
+    can_delete_score = member_score && members_from_score_range_in(leaderboard_name, member_score, member_score).length == 1
+
     @redis_connection.multi do |transaction|
       transaction.zrem(leaderboard_name, member)
+      transaction.zrem(ties_leaderboard_key(leaderboard_name), member_score.to_f.to_s) if can_delete_score
       transaction.hdel(member_data_key(leaderboard_name), member)
     end
   end
@@ -379,10 +391,19 @@ class Leaderboard
   #
   # @return the rank for a member in the leaderboard.
   def rank_for_in(leaderboard_name, member)
-    if @reverse
-      return @redis_connection.zrank(leaderboard_name, member) + 1 rescue nil
+    if @ties
+      member_score = score_for_in(leaderboard_name, member)
+      if @reverse
+        return @redis_connection.zrank(ties_leaderboard_key(leaderboard_name), member_score.to_f.to_s) + 1 rescue nil
+      else
+        return @redis_connection.zrevrank(ties_leaderboard_key(leaderboard_name), member_score.to_f.to_s) + 1 rescue nil
+      end
     else
-      return @redis_connection.zrevrank(leaderboard_name, member) + 1 rescue nil
+      if @reverse
+        return @redis_connection.zrank(leaderboard_name, member) + 1 rescue nil
+      else
+        return @redis_connection.zrevrank(leaderboard_name, member) + 1 rescue nil
+      end
     end
   end
 
@@ -441,12 +462,22 @@ class Leaderboard
   #
   # @return the score and rank for a member in the named leaderboard as a Hash.
   def score_and_rank_for_in(leaderboard_name, member)
+    member_score = @ties ? @redis_connection.zscore(leaderboard_name, member) : nil
+
     responses = @redis_connection.multi do |transaction|
       transaction.zscore(leaderboard_name, member)
-      if @reverse
-        transaction.zrank(leaderboard_name, member)
+      if @ties
+        if @reverse
+          transaction.zrank(ties_leaderboard_key(leaderboard_name), member_score.to_f.to_s)
+        else
+          transaction.zrevrank(ties_leaderboard_key(leaderboard_name), member_score.to_f.to_s)
+        end
       else
-        transaction.zrevrank(leaderboard_name, member)
+        if @reverse
+          transaction.zrank(leaderboard_name, member)
+        else
+          transaction.zrevrank(leaderboard_name, member)
+        end
       end
     end
 
@@ -471,6 +502,7 @@ class Leaderboard
   # @param max_score [float] Maximum score.
   def remove_members_in_score_range_in(leaderboard_name, min_score, max_score)
     @redis_connection.zremrangebyscore(leaderboard_name, min_score, max_score)
+    @redis_connection.zremrangebyscore(ties_leaderboard_key(leaderboard_name), min_score, max_score) if @ties
   end
 
   # Remove members from the leaderboard outside a given rank.
@@ -927,8 +959,17 @@ class Leaderboard
       data = {}
       data[@member_key] = member
       unless leaderboard_options[:members_only]
-        data[@rank_key] = responses[index * 2] + 1 rescue nil
         data[@score_key] = responses[index * 2 + 1].to_f if responses[index * 2 + 1]
+
+        if @ties
+          if @reverse
+            data[@rank_key] = @redis_connection.zrank(ties_leaderboard_key(leaderboard_name), data[@score_key].to_s) + 1 rescue nil
+          else
+            data[@rank_key] = @redis_connection.zrevrank(ties_leaderboard_key(leaderboard_name), data[@score_key].to_s) + 1 rescue nil
+          end
+        else
+          data[@rank_key] = responses[index * 2] + 1 rescue nil
+        end
       end
 
       if leaderboard_options[:with_member_data]
@@ -975,6 +1016,15 @@ class Leaderboard
   # @return a key in the form of +leaderboard_name:member_data+
   def member_data_key(leaderboard_name)
     "#{leaderboard_name}:#{@member_data_namespace}"
+  end
+
+  # Key for ties leaderboard.
+  #
+  # @param leaderboard_name [String] Name of the leaderboard.
+  #
+  # @return a key in the form of +leaderboard_name:ties_namespace+
+  def ties_leaderboard_key(leaderboard_name)
+    "#{leaderboard_name}:#{@ties_namespace}"
   end
 
   # Validate and return the page size. Returns the +DEFAULT_PAGE_SIZE+ if the page size is less than 1.
