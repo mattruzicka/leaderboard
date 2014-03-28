@@ -11,6 +11,7 @@ class Leaderboard
   DEFAULT_OPTIONS = {
     :page_size => DEFAULT_PAGE_SIZE,
     :reverse => false,
+    :ties => false,
     :member_key => :member,
     :rank_key => :rank,
     :score_key => :score,
@@ -71,6 +72,7 @@ class Leaderboard
     @leaderboard_name = leaderboard_name
 
     @reverse   = leaderboard_options[:reverse]
+    @ties      = leaderboard_options[:ties]
     @page_size = leaderboard_options[:page_size]
     if @page_size.nil? || @page_size < 1
       @page_size = DEFAULT_PAGE_SIZE
@@ -927,8 +929,16 @@ class Leaderboard
       data = {}
       data[@member_key] = member
       unless leaderboard_options[:members_only]
-        data[@rank_key] = responses[index * 2] + 1 rescue nil
         data[@score_key] = responses[index * 2 + 1].to_f if responses[index * 2 + 1]
+        if @ties
+          if @reverse
+            data[@rank_key] = @redis_connection.zcount(leaderboard_name, '-inf', "(#{data[@score_key]}") + 1 rescue nil
+          else
+            data[@rank_key] = @redis_connection.zcount(leaderboard_name, "(#{data[@score_key]}", '+inf') + 1 rescue nil
+          end
+        else
+          data[@rank_key] = responses[index * 2] + 1 rescue nil
+        end
       end
 
       if leaderboard_options[:with_member_data]

@@ -370,4 +370,25 @@ describe 'Leaderboard (reverse option)' do
     ranked_members[2][:rank].should be(10)
     ranked_members[2][:score].should eql(10.0)
   end
+
+  context 'ties' do
+    it 'should retrieve the correct rankings for #leaders' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_5', 10)
+
+      leaderboard.leaders(1).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 2
+        leaders[2][:rank].should == 2
+        leaders[3][:rank].should == 4
+        leaders[4][:rank].should == 4
+      end
+
+      leaderboard.disconnect
+    end
+  end
 end

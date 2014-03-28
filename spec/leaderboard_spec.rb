@@ -767,4 +767,51 @@ describe 'Leaderboard' do
     @redis_connection.exists("name:member_data").should be_false
     @redis_connection.exists("name:md").should be_true
   end
+
+  context 'ties' do
+    it 'should retrieve the correct rankings for #leaders' do
+      leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_5', 10)
+
+      leaderboard.leaders(1).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 1
+        leaders[2][:rank].should == 3
+        leaders[3][:rank].should == 3
+        leaders[4][:rank].should == 5
+      end
+
+      leaderboard.disconnect
+    end
+
+    it 'should retrieve the correct rankings for #leaders with different page sizes' do
+      leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_6', 50)
+      leaderboard.rank_member('member_7', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_8', 30)
+      leaderboard.rank_member('member_9', 30)
+      leaderboard.rank_member('member_5', 10)
+      leaderboard.rank_member('member_10', 10)
+
+      leaderboard.leaders(1, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 1
+        leaders[2][:rank].should == 1
+      end
+
+      leaderboard.leaders(2, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 5
+        leaders[2][:rank].should == 5
+      end
+    end
+  end
 end
