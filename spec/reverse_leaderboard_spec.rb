@@ -370,4 +370,118 @@ describe 'Leaderboard (reverse option)' do
     ranked_members[2][:rank].should be(10)
     ranked_members[2][:score].should eql(10.0)
   end
+
+  context 'ties' do
+    it 'should delete the ties ranking internal leaderboard when you delete a leaderboard configured for ties' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_5', 10)
+
+      @redis_connection.exists(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should be_true
+      leaderboard.delete_leaderboard
+      @redis_connection.exists(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should be_false
+    end
+
+    it 'should retrieve the correct rankings for #leaders' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_5', 10)
+
+      leaderboard.leaders(1).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 2
+        leaders[2][:rank].should == 2
+        leaders[3][:rank].should == 3
+        leaders[4][:rank].should == 3
+      end
+    end
+
+    it 'should retrieve the correct rankings for #leaders with different page sizes' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_5', 10)
+      leaderboard.rank_member('member_6', 50)
+      leaderboard.rank_member('member_7', 50)
+      leaderboard.rank_member('member_8', 30)
+      leaderboard.rank_member('member_9', 30)
+      leaderboard.rank_member('member_10', 10)
+
+      leaderboard.leaders(1, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 1
+        leaders[2][:rank].should == 2
+      end
+
+      leaderboard.leaders(2, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 2
+        leaders[1][:rank].should == 2
+        leaders[2][:rank].should == 2
+      end
+    end
+
+    it 'should retrieve the correct rankings for #around_me' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_5', 10)
+      leaderboard.rank_member('member_6', 50)
+      leaderboard.rank_member('member_7', 50)
+      leaderboard.rank_member('member_8', 30)
+      leaderboard.rank_member('member_9', 30)
+      leaderboard.rank_member('member_10', 10)
+
+      leaderboard.around_me('member_3', :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 2
+        leaders[2][:rank].should == 2
+      end
+    end
+
+    it 'should support that removing a single member will also remove their score from the tie scores leaderboard when appropriate' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.remove_member('member_1')
+      leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 2
+      leaderboard.remove_member('member_2')
+      leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 1
+      leaderboard.remove_member('member_3')
+      leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 0
+    end
+
+    it 'should allow you to retrieve the rank of a single member using #rank_for' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.rank_for('member_1').should == 2
+      leaderboard.rank_for('member_2').should == 2
+      leaderboard.rank_for('member_3').should == 1
+    end
+
+    it 'should allow you to retrieve the score and rank of a single member using #score_and_rank_for' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.score_and_rank_for('member_1')[:rank].should == 2
+      leaderboard.score_and_rank_for('member_2')[:rank].should == 2
+      leaderboard.score_and_rank_for('member_3')[:rank].should == 1
+    end
+  end
 end

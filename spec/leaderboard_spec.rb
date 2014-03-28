@@ -945,7 +945,6 @@ describe 'Leaderboard' do
         ttl.should be > 1
         ttl.should be <= 10
       end
-
     end
   end
 end
