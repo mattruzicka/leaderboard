@@ -812,6 +812,56 @@ describe 'Leaderboard' do
         leaders[1][:rank].should == 5
         leaders[2][:rank].should == 5
       end
+
+      leaderboard.disconnect
+    end
+
+    it 'should retrieve the correct rankings for #around_me' do
+      leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_6', 50)
+      leaderboard.rank_member('member_7', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_8', 30)
+      leaderboard.rank_member('member_9', 30)
+      leaderboard.rank_member('member_5', 10)
+      leaderboard.rank_member('member_10', 10)
+
+      leaderboard.around_me('member_4').tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[4][:rank].should == 5
+        leaders[9][:rank].should == 9
+      end
+
+      leaderboard.disconnect
+    end
+
+    it 'should allow you to retrieve the rank of a single member using #rank_for' do
+      leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.rank_for('member_1').should == 1
+      leaderboard.rank_for('member_2').should == 1
+      leaderboard.rank_for('member_3').should == 3
+
+      leaderboard.disconnect
+    end
+
+    it 'should allow you to retrieve the score and rank of a single member using #score_and_rank_for' do
+      leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.score_and_rank_for('member_1')[:rank].should == 1
+      leaderboard.score_and_rank_for('member_2')[:rank].should == 1
+      leaderboard.score_and_rank_for('member_3')[:rank].should == 3
+
+      leaderboard.disconnect
     end
   end
 end

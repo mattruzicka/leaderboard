@@ -381,10 +381,19 @@ class Leaderboard
   #
   # @return the rank for a member in the leaderboard.
   def rank_for_in(leaderboard_name, member)
-    if @reverse
-      return @redis_connection.zrank(leaderboard_name, member) + 1 rescue nil
+    if @ties
+      member_score = score_for_in(leaderboard_name, member)
+      if @reverse
+        return @redis_connection.zcount(leaderboard_name, '-inf', "(#{member_score}") + 1 rescue nil
+      else
+        return @redis_connection.zcount(leaderboard_name, "(#{member_score}", '+inf') + 1 rescue nil
+      end
     else
-      return @redis_connection.zrevrank(leaderboard_name, member) + 1 rescue nil
+      if @reverse
+        return @redis_connection.zrank(leaderboard_name, member) + 1 rescue nil
+      else
+        return @redis_connection.zrevrank(leaderboard_name, member) + 1 rescue nil
+      end
     end
   end
 
@@ -453,7 +462,16 @@ class Leaderboard
     end
 
     responses[0] = responses[0].to_f if responses[0]
-    responses[1] = responses[1] + 1 rescue nil
+    responses[1] =
+      if @ties
+        if @reverse
+          @redis_connection.zcount(leaderboard_name, '-inf', "(#{responses[0]}") + 1 rescue nil
+        else
+          @redis_connection.zcount(leaderboard_name, "(#{responses[0]}", '+inf') + 1 rescue nil
+        end
+      else
+        responses[1] + 1 rescue nil
+      end
 
     {@member_key => member, @score_key => responses[0], @rank_key => responses[1]}
   end

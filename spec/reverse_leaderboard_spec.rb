@@ -390,5 +390,87 @@ describe 'Leaderboard (reverse option)' do
 
       leaderboard.disconnect
     end
+
+    it 'should retrieve the correct rankings for #leaders with different page sizes' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_6', 50)
+      leaderboard.rank_member('member_7', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_8', 30)
+      leaderboard.rank_member('member_9', 30)
+      leaderboard.rank_member('member_5', 10)
+      leaderboard.rank_member('member_10', 10)
+
+      leaderboard.leaders(1, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[1][:rank].should == 1
+        leaders[2][:rank].should == 3
+      end
+
+      leaderboard.leaders(2, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 3
+        leaders[1][:rank].should == 3
+        leaders[2][:rank].should == 3
+      end
+
+      leaderboard.leaders(3, :page_size => 3).tap do |leaders|
+        leaders[0][:rank].should == 7
+        leaders[1][:rank].should == 7
+        leaders[2][:rank].should == 7
+      end
+
+      leaderboard.disconnect
+    end
+
+    it 'should retrieve the correct rankings for #around_me' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_6', 50)
+      leaderboard.rank_member('member_7', 50)
+      leaderboard.rank_member('member_3', 30)
+      leaderboard.rank_member('member_4', 30)
+      leaderboard.rank_member('member_8', 30)
+      leaderboard.rank_member('member_9', 30)
+      leaderboard.rank_member('member_5', 10)
+      leaderboard.rank_member('member_10', 10)
+
+      leaderboard.around_me('member_4').tap do |leaders|
+        leaders[0][:rank].should == 1
+        leaders[4][:rank].should == 3
+        leaders[9][:rank].should == 7
+      end
+
+      leaderboard.disconnect
+    end
+
+    it 'should allow you to retrieve the rank of a single member using #rank_for' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.rank_for('member_3').should == 1
+      leaderboard.rank_for('member_1').should == 2
+      leaderboard.rank_for('member_2').should == 2
+
+      leaderboard.disconnect
+    end
+
+    it 'should allow you to retrieve the score and rank of a single member using #score_and_rank_for' do
+      leaderboard = Leaderboard.new('ties', {:ties => true, :reverse => true}, {:host => "127.0.0.1", :db => 15})
+      leaderboard.rank_member('member_1', 50)
+      leaderboard.rank_member('member_2', 50)
+      leaderboard.rank_member('member_3', 30)
+
+      leaderboard.score_and_rank_for('member_3')[:rank].should == 1
+      leaderboard.score_and_rank_for('member_1')[:rank].should == 2
+      leaderboard.score_and_rank_for('member_2')[:rank].should == 2
+
+      leaderboard.disconnect
+    end
   end
 end
