@@ -797,24 +797,6 @@ describe 'Leaderboard' do
         leaders[3][:rank].should == 2
         leaders[4][:rank].should == 3
       end
-
-      leaderboard.rank_member('member_6', 50)
-      leaderboard.rank_member('member_7', 50)
-      leaderboard.rank_member('member_8', 30)
-      leaderboard.rank_member('member_9', 30)
-      leaderboard.rank_member('member_10', 10)
-
-      leaderboard.leaders(1, :page_size => 3).tap do |leaders|
-        leaders[0][:rank].should == 1
-        leaders[1][:rank].should == 1
-        leaders[2][:rank].should == 1
-      end
-
-      leaderboard.leaders(2, :page_size => 3).tap do |leaders|
-        leaders[0][:rank].should == 1
-        leaders[1][:rank].should == 2
-        leaders[2][:rank].should == 2
-      end
     end
 
     it 'should retrieve the correct rankings for #leaders with different page sizes' do
@@ -922,6 +904,48 @@ describe 'Leaderboard' do
       leaders.each do |leader|
         leader[:score].should be < 100
       end
+    end
+
+    it 'should expire the ties leaderboard in a given number of seconds' do
+      @leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+
+      rank_members_in_leaderboard
+
+      @leaderboard.expire_leaderboard(3)
+      @redis_connection.ttl(@leaderboard.leaderboard_name).tap do |ttl|
+        ttl.should be > 1
+        ttl.should be <= 3
+      end
+      @redis_connection.ttl(@leaderboard.send(:ties_leaderboard_key, @leaderboard.leaderboard_name)).tap do |ttl|
+        ttl.should be > 1
+        ttl.should be <= 3
+      end
+      @redis_connection.ttl(@leaderboard.send(:member_data_key, @leaderboard.leaderboard_name)).tap do |ttl|
+        ttl.should be > 1
+        ttl.should be <= 3
+      end
+
+    end
+
+    it 'should expire the ties leaderboard at a specific timestamp' do
+      @leaderboard = Leaderboard.new('ties', {:ties => true}, {:host => "127.0.0.1", :db => 15})
+
+      rank_members_in_leaderboard
+
+      @leaderboard.expire_leaderboard_at((Time.now + 10).to_i)
+      @redis_connection.ttl(@leaderboard.leaderboard_name).tap do |ttl|
+        ttl.should be > 1
+        ttl.should be <= 10
+      end
+      @redis_connection.ttl(@leaderboard.send(:ties_leaderboard_key, @leaderboard.leaderboard_name)).tap do |ttl|
+        ttl.should be > 1
+        ttl.should be <= 10
+      end
+      @redis_connection.ttl(@leaderboard.send(:member_data_key, @leaderboard.leaderboard_name)).tap do |ttl|
+        ttl.should be > 1
+        ttl.should be <= 10
+      end
+
     end
   end
 end

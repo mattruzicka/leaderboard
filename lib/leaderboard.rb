@@ -645,6 +645,7 @@ class Leaderboard
   def expire_leaderboard_for(leaderboard_name, seconds)
     @redis_connection.multi do |transaction|
       transaction.expire(leaderboard_name, seconds)
+      transaction.expire(ties_leaderboard_key(leaderboard_name), seconds) if @ties
       transaction.expire(member_data_key(leaderboard_name), seconds)
     end
   end
@@ -667,6 +668,7 @@ class Leaderboard
   def expire_leaderboard_at_for(leaderboard_name, timestamp)
     @redis_connection.multi do |transaction|
       transaction.expireat(leaderboard_name, timestamp)
+      transaction.expireat(ties_leaderboard_key(leaderboard_name), timestamp) if @ties
       transaction.expireat(member_data_key(leaderboard_name), timestamp)
     end
   end
