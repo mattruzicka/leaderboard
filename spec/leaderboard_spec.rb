@@ -780,6 +780,8 @@ describe 'Leaderboard' do
       @redis_connection.exists(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should be_true
       leaderboard.delete_leaderboard
       @redis_connection.exists(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should be_false
+
+      leaderboard.disconnect
     end
 
     it 'should retrieve the correct rankings for #leaders' do
@@ -797,6 +799,8 @@ describe 'Leaderboard' do
         leaders[3][:rank].should == 2
         leaders[4][:rank].should == 3
       end
+
+      leaderboard.disconnect
     end
 
     it 'should retrieve the correct rankings for #leaders with different page sizes' do
@@ -823,6 +827,8 @@ describe 'Leaderboard' do
         leaders[1][:rank].should == 2
         leaders[2][:rank].should == 2
       end
+
+      leaderboard.disconnect
     end
 
     it 'should retrieve the correct rankings for #around_me' do
@@ -843,6 +849,8 @@ describe 'Leaderboard' do
         leaders[1][:rank].should == 2
         leaders[2][:rank].should == 3
       end
+
+      leaderboard.disconnect
     end
 
     it 'should support that removing a single member will also remove their score from the tie scores leaderboard when appropriate' do
@@ -857,6 +865,8 @@ describe 'Leaderboard' do
       leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 1
       leaderboard.remove_member('member_3')
       leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 0
+
+      leaderboard.disconnect
     end
 
     it 'should allow you to retrieve the rank of a single member using #rank_for' do
@@ -868,6 +878,8 @@ describe 'Leaderboard' do
       leaderboard.rank_for('member_1').should == 1
       leaderboard.rank_for('member_2').should == 1
       leaderboard.rank_for('member_3').should == 2
+
+      leaderboard.disconnect
     end
 
     it 'should allow you to retrieve the score and rank of a single member using #score_and_rank_for' do
@@ -879,6 +891,8 @@ describe 'Leaderboard' do
       leaderboard.score_and_rank_for('member_1')[:rank].should == 1
       leaderboard.score_and_rank_for('member_2')[:rank].should == 1
       leaderboard.score_and_rank_for('member_3')[:rank].should == 2
+
+      leaderboard.disconnect
     end
 
     it 'should allow you to remove members in a given score range using #remove_members_in_score_range' do
