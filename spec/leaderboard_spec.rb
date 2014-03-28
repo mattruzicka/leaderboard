@@ -777,9 +777,9 @@ describe 'Leaderboard' do
       leaderboard.rank_member('member_4', 30)
       leaderboard.rank_member('member_5', 10)
 
-      @redis_connection.exists('ties:ties').should be_true
+      @redis_connection.exists(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should be_true
       leaderboard.delete_leaderboard
-      @redis_connection.exists('ties:ties').should be_false
+      @redis_connection.exists(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should be_false
     end
 
     it 'should retrieve the correct rankings for #leaders' do
@@ -852,11 +852,11 @@ describe 'Leaderboard' do
       leaderboard.rank_member('member_3', 30)
 
       leaderboard.remove_member('member_1')
-      leaderboard.total_members_in('ties:ties').should == 2
+      leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 2
       leaderboard.remove_member('member_2')
-      leaderboard.total_members_in('ties:ties').should == 1
+      leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 1
       leaderboard.remove_member('member_3')
-      leaderboard.total_members_in('ties:ties').should == 0
+      leaderboard.total_members_in(leaderboard.send(:ties_leaderboard_key, leaderboard.leaderboard_name)).should == 0
     end
 
     it 'should allow you to retrieve the rank of a single member using #rank_for' do
@@ -893,12 +893,12 @@ describe 'Leaderboard' do
       @leaderboard.rank_member('cheater_3', 102)
 
       @leaderboard.total_members.should be(8)
-      @leaderboard.total_members_in('ties:ties').should be(8)
+      @leaderboard.total_members_in(@leaderboard.send(:ties_leaderboard_key, @leaderboard.leaderboard_name)).should be(8)
 
       @leaderboard.remove_members_in_score_range(100, 102)
 
       @leaderboard.total_members.should be(5)
-      @leaderboard.total_members_in('ties:ties').should be(5)
+      @leaderboard.total_members_in(@leaderboard.send(:ties_leaderboard_key, @leaderboard.leaderboard_name)).should be(5)
 
       leaders = @leaderboard.leaders(1)
       leaders.each do |leader|
